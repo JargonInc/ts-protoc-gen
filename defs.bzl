@@ -123,7 +123,8 @@ def typescript_proto_library_aspect_(target, ctx):
     )
 
     dts_outputs = depset(dts_outputs)
-    js_outputs = depset(_convert_js_files_to_amd_modules(ctx, js_protoc_outputs))
+    # js_outputs = depset(_convert_js_files_to_amd_modules(ctx, js_protoc_outputs))
+    js_outputs = depset(js_protoc_outputs)
     deps_js = depset([])
     deps_dts = depset([])
 
