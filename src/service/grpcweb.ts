@@ -208,6 +208,10 @@ function generateTypescriptDefinition(fileDescriptor: FileDescriptorProto, expor
   printer.printLn("interface UnaryResponse {");
   printer.printIndentedLn("cancel(): void;");
   printer.printLn("}");
+  printer.printLn("interface UnaryAsyncResponse<T> {");
+  printer.printIndentedLn("cancel(): void;");
+  printer.printIndentedLn("promise: Promise<T>;");
+  printer.printLn("}");
   printer.printLn(`interface ResponseStream<T> {`);
   printer.printIndentedLn(`cancel(): void;`);
   printer.printIndentedLn(`on(type: 'data', handler: (message: T) => void): ResponseStream<T>;`);
@@ -351,6 +355,44 @@ function printUnaryStubMethod(printer: CodePrinter, method: RPCMethodDescriptor)
         .indent().printLn(`callback = null;`)
                  .printLn(`client.close();`)
       .dedent().printLn(`}`)
+    .dedent().printLn(`};`)
+  .dedent().printLn(`};`);
+
+  printer
+             .printLn(`${method.serviceName}Client.prototype.${method.nameAsCamelCase}Async = function ${method.functionName}(requestMessage, metadata) {`)
+      .indent().printLn(`var cancelled = false`)
+               .printLn(`var client;`)
+               .printLn(`var promise = new Promise((resolve, reject) => {`)
+        .indent().printLn(`try {`)
+          .indent().printLn(`client = grpc.unary(${method.serviceName}.${method.nameAsPascalCase}, {`)
+            .indent().printLn(`request: requestMessage,`)
+                    .printLn(`host: this.serviceHost,`)
+                    .printLn(`metadata: metadata,`)
+                    .printLn(`transport: this.options.transport,`)
+                    .printLn(`debug: this.options.debug,`)
+                    .printLn(`onEnd: function (response) {`)
+              .indent().printLn(`if (!cancelled) {`)
+                .indent().printLn(`if (response.status !== grpc.Code.OK) {`)
+                  .indent().printLn(`var err = new Error(response.statusMessage);`)
+                          .printLn(`err.code = response.status;`)
+                          .printLn(`err.metadata = response.trailers;`)
+                          .printLn(`reject(err);`)
+                .dedent().printLn(`} else {`)
+                  .indent().printLn(`resolve(response.message);`)
+                .dedent().printLn(`}`)
+              .dedent().printLn(`}`)
+            .dedent().printLn(`}`)
+          .dedent().printLn(`});`)
+        .dedent().printLn(`} catch (err) {`)
+          .indent().printLn(`reject(err);`)
+        .dedent().printLn(`}`)
+      .dedent().printLn(`});`)
+             .printLn(`return {`)
+      .indent().printLn(`cancel: function () {`)
+        .indent().printLn(`cancelled = false;`)
+                 .printLn(`client && client.close();`)
+        .dedent().printLn(`},`)
+              .printLn(`promise`)
     .dedent().printLn(`};`)
   .dedent().printLn(`};`);
 }
@@ -522,7 +564,11 @@ function printUnaryStubMethodTypes(printer: CodePrinter, method: RPCMethodDescri
              .printLn(`${method.nameAsCamelCase}(`)
       .indent().printLn(`requestMessage: ${method.requestType},`)
                .printLn(`callback: (error: ServiceError|null, responseMessage: ${method.responseType}|null) => void`)
-    .dedent().printLn(`): UnaryResponse;`);
+    .dedent().printLn(`): UnaryResponse;`)
+             .printLn(`${method.nameAsCamelCase}Async(`)
+      .indent().printLn(`requestMessage: ${method.requestType},`)
+               .printLn(`metadata?: grpc.Metadata`)
+    .dedent().printLn(`): UnaryAsyncResponse<${method.responseType}>;`);
 }
 
 function printServerStreamStubMethodTypes(printer: CodePrinter, method: RPCMethodDescriptor) {
